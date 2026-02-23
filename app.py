@@ -16,7 +16,7 @@ st.markdown("Strict auditing against ICE manuals and verified approved file stru
 
 # Dynamic key allows the widget to be cleared via the reset button
 uploaded_file = st.file_uploader(
-    "Upload a .V22 or .TXT file", 
+    "Upload a .V22 file", 
     type=["v22", "txt", "cwr"], 
     key=f"uploader_{st.session_state.uploader_key}"
 )
@@ -24,16 +24,18 @@ uploaded_file = st.file_uploader(
 if uploaded_file is not None:
     raw_bytes = uploaded_file.getvalue()
     raw_content = raw_bytes.decode("latin-1") 
+    filename = uploaded_file.name
     
     st.markdown("---")
-    st.subheader(f"Audit Results: `{uploaded_file.name}`")
+    st.subheader(f"Audit Results: `{filename}`")
     
-    validator = ICE_Validator(raw_content)
+    # Initialize validator with the filename
+    validator = ICE_Validator(raw_content, filename)
     passed = validator.run()
     
     # 1. Top-Level Status Banner
     if passed and not validator.warnings:
-        st.success("✅ PASSED: File perfectly matches ICE specifications and Chris's blueprint.")
+        st.success("✅ PASSED: File and filename perfectly match ICE specifications and Chris's blueprint.")
     elif passed:
         st.warning("⚠️ PASSED WITH WARNINGS: File is technically valid, but review notes below.")
     else:
@@ -60,13 +62,12 @@ if uploaded_file is not None:
     # 3. Present Report Document & Download Button
     if report_text:
         st.markdown("### Validation Report Document")
-        # Presents the errors in a single scrollable text box instead of hundreds of individual alerts
         st.text_area("Copyable Audit Details", value=report_text, height=300)
         
         st.download_button(
             label="📥 Download Audit Report (.txt)",
             data=report_text,
-            file_name=f"Audit_Report_{uploaded_file.name}.txt",
+            file_name=f"Audit_Report_{filename}.txt",
             mime="text/plain"
         )
 
@@ -76,5 +77,5 @@ if uploaded_file is not None:
         
     st.markdown("---")
     
-    # 5. Reset Button (Calls the reset function to clear the uploader instantly)
+    # 5. Reset Button
     st.button("🔄 Reset Validator / Upload New File", on_click=reset_app)
