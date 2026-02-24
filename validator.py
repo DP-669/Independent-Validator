@@ -31,19 +31,16 @@ class ICE_Validator:
             )
 
     def _check_file_format(self):
-        # ICE requires strict Windows CRLF (\r\n)
         if "\r\n" not in self.raw_content and "\n" in self.raw_content:
-            self.errors.append("Format Error: File uses UNIX line endings. ICE requires CRLF (\\r\\n).")
+            self.errors.append("Format Error: ICE requires Windows CRLF (\\r\\n).")
 
     def _check_hdr(self):
         if not self.lines[0].startswith("HDR"):
             self.errors.append("Critical: File must start with HDR.")
             return
         hdr = self.lines[0]
-        # ICE Manual: Sender Type must be '01' (Index 3-5)
         if hdr[3:5] != "01":
-            self.errors.append(f"HDR Error: Sender Type must be '01'. Found '{hdr[3:5]}'.")
-        # Alignment: Version 01.10 must be at Index 60
+            self.errors.append(f"HDR Error: Sender Type must be '01'.")
         if hdr[59:64] != "01.10":
             self.errors.append("HDR Alignment Error: '01.10' not found at index 60. Check padding.")
 
@@ -58,38 +55,39 @@ class ICE_Validator:
             if rectype == "REC":
                 isrc = line[249:261].strip()
                 if isrc:
+                    # Length Check
                     if len(isrc) != 12:
-                        self.errors.append(f"Line {line_num} (REC): ISRC '{isrc}' is {len(isrc)} chars. Must be 12 (e.g., USSSHD...).")
+                        self.errors.append(f"Line {line_num} (REC): ISRC '{isrc}' is {len(isrc)} chars. Must be 12.")
+                    
+                    # Prefix Check (Lumina Specific)
+                    if not isrc.startswith("USSHD"):
+                        self.errors.append(f"Line {line_num} (REC): ISRC '{isrc}' must start with 'USSHD' per RIAA assignment.")
+                    
+                    # Validity Flag (Index 507)
                     validity_flag = line[506:507]
-                    if validity_flag not in ['Y', 'N', 'U']:
-                        self.errors.append(f"Line {line_num} (REC): ISRC Validity must be Y, N, or U. Found '{validity_flag}'.")
+                    if validity_flag != 'Y':
+                        self.errors.append(f"Line {line_num} (REC): ISRC Validity must be 'Y'. Found '{validity_flag}'.")
 
             # 2. ORN CUT NUMBER CLEANING (ORNF005)
             if rectype == "ORN":
                 cut_number = line[97:101].strip()
                 if cut_number and not cut_number.isdigit():
-                    self.errors.append(f"Line {line_num} (ORN): Cut Number '{cut_number}' must be numeric only (no letters).")
+                    self.errors.append(f"Line {line_num} (ORN): Cut Number '{cut_number}' must be numeric (found '{cut_number}').")
 
             # 3. IPI VALIDATION
             if rectype in ["SPU", "SWR"]:
-                # SPU IPI (Index 88-98) | SWR IPI (Index 116-126)
                 start = 87 if rectype == "SPU" else 115
                 ipi = line[start:start+11].strip()
                 if ipi:
-                    if not ipi.isdigit():
-                        self.errors.append(f"Line {line_num} ({rectype}): IPI '{ipi}' must be numeric only.")
-                    if len(ipi) != 11:
-                        self.warnings.append(f"Line {line_num} ({rectype}): IPI '{ipi}' is {len(ipi)} chars. Expected 11.")
+                    if not ipi.isdigit() or len(ipi) != 11:
+                        self.errors.append(f"Line {line_num} ({rectype}): IPI '{ipi}' must be exactly 11 numeric digits.")
 
-            # 4. SHARE SUMMATION & SPU LENGTH
+            # 4. SPU RULES
             if rectype == "SPU":
                 if len(line) != 182:
                     self.errors.append(f"Line {line_num} (SPU): Length is {len(line)}, must be 182.")
-                pr_share = line[115:120].strip()
-                if pr_share and int(pr_share) > 10000:
-                    self.errors.append(f"Line {line_num} (SPU): PR Share {pr_share} exceeds 100%.")
                 
-                # Check for flagged Agreement ID
+                # Warning for the flagged Agreement ID
                 agreement_no = line[166:180].strip()
                 if agreement_no == "4316161":
-                    self.warnings.append(f"Line {line_num} (SPU): Agreement '4316161' previously rejected by Berlin.")
+                    self.warnings.append(f"Line {line_num} (SPU): Agreement '4316161' is still active but was flagged by Berlin.")
