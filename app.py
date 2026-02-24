@@ -9,11 +9,11 @@ if "uploader_key" not in st.session_state:
 def reset_app():
     st.session_state.uploader_key += 1
 
-st.title("ICE/PRS CWR 2.2 Validator")
-st.markdown("Strict auditing against ICE Berlin manual v2.2 and verified approved file structures.")
+st.title("ICE CWR 2.2 Validator")
+st.markdown("Objective validation against ICE Berlin v2.2 Manual and Approved Blueprints.")
 
 uploaded_file = st.file_uploader(
-    "Upload a .V22 file", 
+    "Upload .V22 File", 
     type=["v22", "txt", "cwr"], 
     key=f"uploader_{st.session_state.uploader_key}"
 )
@@ -22,39 +22,29 @@ if uploaded_file is not None:
     raw_content = uploaded_file.getvalue().decode("latin-1") 
     filename = uploaded_file.name
     
-    st.markdown("---")
     validator = ICE_Validator(raw_content, filename)
     passed = validator.run()
     
-    if passed and not validator.warnings:
-        st.success(f"✅ PASSED: {filename}")
-    elif passed:
-        st.warning(f"⚠️ PASSED WITH WARNINGS: {filename}")
+    if passed:
+        st.success(f"✅ VALID: {filename}")
     else:
-        st.error(f"❌ FAILED: {filename}")
+        st.error(f"❌ INVALID: {filename}")
         
     report_lines = []
     if validator.errors:
-        report_lines.append("🔴 CRITICAL ERRORS (ICE Rejection Triggers)")
+        report_lines.append("🔴 CRITICAL ERRORS")
         report_lines.append("=" * 60)
         for error in validator.errors:
             report_lines.append(f"- {error}")
-        report_lines.append("\n")
-        
+            
     if validator.warnings:
-        report_lines.append("🟡 WARNINGS (Data Cleaning Issues)")
+        report_lines.append("\n🟡 WARNINGS")
         report_lines.append("=" * 60)
         for warning in validator.warnings:
             report_lines.append(f"- {warning}")
 
-    report_text = "\n".join(report_lines)
+    if report_lines:
+        st.text_area("Validation Report", value="\n".join(report_lines), height=400)
+        st.download_button("Download Report", data="\n".join(report_lines), file_name=f"Report_{filename}.txt")
 
-    if report_text:
-        st.markdown("### Validation Report Document")
-        st.text_area("Audit Details", value=report_text, height=300)
-        st.download_button("📥 Download Report", data=report_text, file_name=f"Audit_{filename}.txt")
-
-    with st.expander("View Raw File Data"):
-        st.text(raw_content)
-        
-    st.button("🔄 Reset / Upload New File", on_click=reset_app)
+    st.button("🔄 Reset / New Upload", on_click=reset_app)
