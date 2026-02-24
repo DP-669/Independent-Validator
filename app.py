@@ -1,7 +1,7 @@
 import streamlit as st
 from validator import ICE_Validator
 
-st.set_page_config(page_title="Lumina ICE Validator", page_icon="🛡️", layout="centered")
+st.set_page_config(page_title="ICE CWR 2.2 Validator", page_icon="🛡️", layout="centered")
 
 if "uploader_key" not in st.session_state:
     st.session_state.uploader_key = 0
@@ -10,7 +10,7 @@ def reset_app():
     st.session_state.uploader_key += 1
 
 st.title("ICE CWR 2.2 Validator")
-st.markdown("Objective validation against ICE Berlin v2.2 Manual and Approved Blueprints.")
+st.markdown("Strict objective validation against CWR v2.2 Manual and ICE requirements.")
 
 uploaded_file = st.file_uploader(
     "Upload .V22 File", 
@@ -30,21 +30,19 @@ if uploaded_file is not None:
     else:
         st.error(f"❌ INVALID: {filename}")
         
-    report_lines = []
+    report = []
     if validator.errors:
-        report_lines.append("🔴 CRITICAL ERRORS")
-        report_lines.append("=" * 60)
-        for error in validator.errors:
-            report_lines.append(f"- {error}")
+        report.append("🔴 CRITICAL ERRORS")
+        report.append("-" * 30)
+        report.extend([f"- {e}" for e in validator.errors])
             
     if validator.warnings:
-        report_lines.append("\n🟡 WARNINGS")
-        report_lines.append("=" * 60)
-        for warning in validator.warnings:
-            report_lines.append(f"- {warning}")
+        report.append("\n🟡 WARNINGS")
+        report.append("-" * 30)
+        report.extend([f"- {w}" for w in validator.warnings])
 
-    if report_lines:
-        st.text_area("Validation Report", value="\n".join(report_lines), height=400)
-        st.download_button("Download Report", data="\n".join(report_lines), file_name=f"Report_{filename}.txt")
+    if report:
+        st.text_area("Audit Report", value="\n".join(report), height=400)
+        st.download_button("Download Report", data="\n".join(report), file_name=f"Audit_{filename}.txt")
 
-    st.button("🔄 Reset / New Upload", on_click=reset_app)
+    st.button("🔄 Reset Validator", on_click=reset_app)
