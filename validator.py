@@ -42,7 +42,6 @@ class ICE_Validator:
             self.errors.append(f"HDR Alignment Error: EDI Version '01.10' (Pos 60-64) missing. Found '{hdr[59:64]}'.")
 
     def _check_records_and_math(self):
-        # Tracking variables for mathematical share validation per work
         current_work = None
         pr_total = 0
         mr_total = 0
@@ -55,11 +54,9 @@ class ICE_Validator:
 
             # TRANSACTION TRACKING (NWR/REV)
             if rectype in ["NWR", "REV"]:
-                # If we are starting a new work, check the totals of the PREVIOUS work
                 if current_work is not None:
                     self._validate_share_totals(current_work, pr_total, mr_total, sr_total)
                 
-                # Reset accumulators for the new work
                 current_work = f"Line {line_num} ({rectype})"
                 pr_total = mr_total = sr_total = 0
 
@@ -73,8 +70,8 @@ class ICE_Validator:
                 if ipi and (not ipi.isdigit() or len(ipi) != 11):
                     self.errors.append(f"Line {line_num} (SPU): IPI '{ipi}' at Pos 88-98 must be exactly 11 numeric digits.")
 
-                # Share Accumulation (Ownership)
-                pr, mr, sr = self._extract_shares(line, 115, 120, 125, line_num, "SPU")
+                # SPU Ownership Shares
+                pr, mr, sr = self._extract_shares(line, 115, 123, 131, line_num, "SPU")
                 pr_total += pr; mr_total += mr; sr_total += sr
 
             # SWR: WRITER RECORD
@@ -84,8 +81,8 @@ class ICE_Validator:
                 if ipi and (not ipi.isdigit() or len(ipi) != 11):
                     self.errors.append(f"Line {line_num} (SWR): IPI '{ipi}' at Pos 116-126 must be exactly 11 numeric digits.")
 
-                # Share Accumulation (Ownership)
-                pr, mr, sr = self._extract_shares(line, 127, 132, 137, line_num, "SWR")
+                # SWR Ownership Shares
+                pr, mr, sr = self._extract_shares(line, 129, 137, 145, line_num, "SWR")
                 pr_total += pr; mr_total += mr; sr_total += sr
 
             # SPT: PUBLISHER TERRITORY
@@ -113,22 +110,21 @@ class ICE_Validator:
                 if cut_no and not cut_no.isdigit():
                     self.errors.append(f"Line {line_num} (ORN): Cut Number (Pos 98-101) must be strictly numeric. Found '{cut_no}'.")
 
-        # End of file: validate the final work's totals
+        # Validate final work's totals
         if current_work is not None:
             self._validate_share_totals(current_work, pr_total, mr_total, sr_total)
 
-    def _extract_shares(self, line, pr_start, mr_start, sr_start, line_num, rec_type):
-        """Helper to safely extract and validate ownership shares"""
+    def _extract_shares(self, line, pr_idx, mr_idx, sr_idx, line_num, rec_type):
+        """Extracts 5-digit ownership shares securely using precise absolute indexing"""
         try:
-            pr_str = line[pr_start:pr_start+5].strip()
-            mr_str = line[mr_start:mr_start+5].strip()
-            sr_str = line[sr_start:sr_start+5].strip()
+            pr_str = line[pr_idx:pr_idx+5].strip()
+            mr_str = line[mr_idx:mr_idx+5].strip()
+            sr_str = line[sr_idx:sr_idx+5].strip()
 
             pr = int(pr_str) if pr_str else 0
             mr = int(mr_str) if mr_str else 0
             sr = int(sr_str) if sr_str else 0
             
-            # Individual share limits
             if pr > 10000 or mr > 10000 or sr > 10000:
                  self.errors.append(f"Line {line_num} ({rec_type}): Individual share exceeds 10000 (100%). PR:{pr}, MR:{mr}, SR:{sr}")
             return pr, mr, sr
@@ -138,8 +134,7 @@ class ICE_Validator:
             return 0, 0, 0
 
     def _validate_share_totals(self, work_id, pr_total, mr_total, sr_total):
-        """Validates that total ownership across a single work equals exactly 100%"""
-        
+        """Validates that total ownership equals exactly 100% (10000)"""
         if pr_total != 10000:
             self.errors.append(f"Work starting at {work_id}: Total Performance (PR) shares equal {pr_total}. Must be exactly 10000.")
         if mr_total != 10000:
